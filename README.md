@@ -85,9 +85,6 @@ Supports multiple AI models through OpenRouter:
 
 ---
 
-# Screenshots
-
-Add your screenshots here after deployment.
 
 ---
 
