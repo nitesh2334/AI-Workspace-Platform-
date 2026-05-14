@@ -88,9 +88,8 @@ export function EmailAuthForm({ mode, next = "/" }: EmailAuthFormProps) {
               email,
               password,
               options: {
-                emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-                  next,
-                )}`,
+                
+                emailRedirectTo: `${window.location.origin}/auth/callback`,
               },
             });
             if (signUpError) throw signUpError;
