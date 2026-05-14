@@ -74,16 +74,19 @@ export function EmailAuthForm({ mode, next = "/" }: EmailAuthFormProps) {
             const supabase = createSupabaseBrowserClient();
 
             if (mode === "login") {
-              const { error: signInError } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-              });
-              if (signInError) throw signInError;
-              router.push(next);
-              router.refresh();
+            const { error } = await supabase.auth.signInWithPassword({
+  email,
+  password,
+});
+
+if (error) {
+  throw error;
+}
+
+router.push("/");
+router.refresh();
               return;
             }
-
             const { data, error: signUpError } = await supabase.auth.signUp({
               email,
               password,
