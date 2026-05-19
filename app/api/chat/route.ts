@@ -7,7 +7,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/cortex/rate-limit";
 import { recordUsage } from "@/lib/cortex/usage";
 import { chatSchema, parseRequestBody } from "@/lib/cortex/validation";
-import { searchRelevantChunks } from "@/lib/cortex/rag";
 
 export const maxDuration = 60;
 
@@ -71,51 +70,10 @@ export async function POST(req: Request) {
       .eq("user_id", user.id);
   }
 
-  // ─── RAG: retrieve relevant document chunks for the latest user message ───
-  let ragContext = "";
-  try {
-    const latestUserMsg = messages
-      .filter((m: { role: string }) => m.role === "user")
-      .pop();
-    const query =
-      latestUserMsg && typeof latestUserMsg === "object"
-        ? ((latestUserMsg as { content?: string }).content ??
-          ((latestUserMsg as { parts?: Array<{ type: string; text: string }> }).parts
-            ?.filter((p) => p.type === "text")
-            .map((p) => p.text)
-            .join("") || ""))
-        : "";
-
-    if (query) {
-      const supabase = await createSupabaseServerClient();
-      const chunks = await searchRelevantChunks(supabase, user.id, query, {
-        limit: 4,
-        minSimilarity: 0.45,
-      });
-
-      if (chunks.length > 0) {
-        ragContext =
-          "\n\nUse the following document context to help answer the user's question when relevant.\n\nRelevant context from your documents:\n" +
-          chunks
-            .map(
-              (chunk, i) =>
-                `[${i + 1}] (from "${chunk.documentFilename}")\n${chunk.content}`,
-            )
-            .join("\n\n---\n\n");
-      }
-    }
-  } catch {
-    // RAG errors are non-fatal — the chat still works without document context
-    console.error("[rag] Retrieval failed");
-  }
-
-  const systemPrompt =
-    "You are Cortex, a concise AI workspace assistant. Help with planning, writing, debugging, and technical reasoning. Use markdown when it improves readability." +
-    ragContext;
-
   const result = streamText({
     model: openrouter.chat(selectedModel),
-    system: systemPrompt,
+    system:
+      "You are Cortex, a concise AI workspace assistant. Help with planning, writing, debugging, and technical reasoning. Use markdown when it improves readability.",
     messages: await convertToModelMessages(messages.slice(-30)),
     maxOutputTokens: 1600,
     onFinish: async ({ usage }) => {

@@ -23,14 +23,8 @@ create table if not exists public.cortex_messages (
 create index if not exists cortex_conversations_user_updated_idx
   on public.cortex_conversations (user_id, updated_at desc);
 
-alter table public.cortex_messages
-  add column if not exists position integer not null default 0;
-
 create index if not exists cortex_messages_conversation_position_idx
   on public.cortex_messages (conversation_id, position asc);
-
-alter table public.cortex_messages
-  add column if not exists user_id uuid;
 
 alter table public.cortex_conversations enable row level security;
 alter table public.cortex_messages enable row level security;

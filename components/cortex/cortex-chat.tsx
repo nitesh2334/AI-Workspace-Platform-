@@ -46,11 +46,6 @@ import {
   titleFromMessages,
 } from "@/lib/cortex/chat";
 import { cn } from "@/lib/utils";
-import {
-  FileUpload,
-  AttachedFiles,
-  type UploadedFileInfo,
-} from "@/components/cortex/file-upload";
 
 const examplePrompts = [
   "Shape a focused launch plan for a new AI feature.",
@@ -520,7 +515,6 @@ export function CortexChat() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
-  const [attachedFiles, setAttachedFiles] = React.useState<UploadedFileInfo[]>([]);
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const activeIdRef = React.useRef<string | null>(null);
@@ -713,14 +707,6 @@ export function CortexChat() {
     );
     setInput("");
     textareaRef.current?.focus();
-  }
-
-  function handleFileUploaded(file: UploadedFileInfo) {
-    setAttachedFiles((prev) => [...prev, file]);
-  }
-
-  function handleFileRemoved(fileId: string) {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId));
   }
 
   async function selectConversation(id: string) {
@@ -1070,10 +1056,6 @@ export function CortexChat() {
             }}
             className="mt-3 rounded-xl border border-border bg-card p-2 shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-highlight/25 focus-within:shadow-md md:mt-4"
           >
-            <AttachedFiles
-              files={attachedFiles}
-              onRemove={handleFileRemoved}
-            />
             <textarea
               ref={textareaRef}
               value={input}
@@ -1090,18 +1072,10 @@ export function CortexChat() {
               className="max-h-40 min-h-18 w-full resize-none bg-transparent px-3 py-2 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-20"
             />
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <FileUpload
-                  onFileUploaded={handleFileUploaded}
-                  onFileRemoved={handleFileRemoved}
-                  attachedFiles={attachedFiles}
-                  disabled={isBusy}
-                />
-                <div className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block">
-                  {activeConversation
-                    ? titleFromMessages(messages) || activeConversation.title
-                    : "Unsaved draft"}
-                </div>
+              <div className="hidden min-w-0 truncate text-xs text-muted-foreground sm:block">
+                {activeConversation
+                  ? titleFromMessages(messages) || activeConversation.title
+                  : "Unsaved draft"}
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {isBusy ? (
