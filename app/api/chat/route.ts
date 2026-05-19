@@ -1,9 +1,12 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 
 import { DEFAULT_CORTEX_MODEL, isSupportedModel } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/cortex/rate-limit";
+import { recordUsage } from "@/lib/cortex/usage";
+import { chatSchema, parseRequestBody } from "@/lib/cortex/validation";
 
 export const maxDuration = 60;
 
@@ -23,6 +26,17 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const rateLimitResult = await checkRateLimit(user.id);
+  if (!rateLimitResult.ok) {
+    return Response.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimitResult.retryAfter) },
+      },
+    );
+  }
+
   if (!process.env.OPENROUTER_API_KEY) {
     return Response.json(
       { error: "OpenRouter is not configured." },
@@ -30,16 +44,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const {
-    messages,
-    conversationId,
-    model,
-  }: { messages?: UIMessage[]; conversationId?: string; model?: string } =
-    await req.json();
-
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return Response.json({ error: "No messages provided." }, { status: 400 });
-  }
+  const parsed = await parseRequestBody(req, chatSchema);
+  if ("errorResponse" in parsed) return parsed.errorResponse;
+  const { messages, conversationId, model } = parsed.data;
 
   const selectedModel = model && isSupportedModel(model) ? model : DEFAULT_CORTEX_MODEL;
 
@@ -69,6 +76,16 @@ export async function POST(req: Request) {
       "You are Cortex, a concise AI workspace assistant. Help with planning, writing, debugging, and technical reasoning. Use markdown when it improves readability.",
     messages: await convertToModelMessages(messages.slice(-30)),
     maxOutputTokens: 1600,
+    onFinish: async ({ usage }) => {
+      if (!usage) return;
+      const supabase = await createSupabaseServerClient();
+      await recordUsage(supabase, {
+        userId: user.id,
+        model: selectedModel,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+      });
+    },
   });
 
   return result.toUIMessageStreamResponse({
