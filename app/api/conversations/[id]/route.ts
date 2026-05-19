@@ -1,6 +1,10 @@
 import { isSupportedModel } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  parseRequestBody,
+  updateConversationSchema,
+} from "@/lib/cortex/validation";
 
 export async function PATCH(
   req: Request,
@@ -12,17 +16,20 @@ export async function PATCH(
   }
 
   const { id } = await ctx.params;
-  const body = (await req.json()) as { title?: string; model?: string };
+  const parsed = await parseRequestBody(req, updateConversationSchema);
+  if ("errorResponse" in parsed) return parsed.errorResponse;
+  const { title: rawTitle, model: rawModel } = parsed.data;
+
   const patch: { title?: string; model?: string; updated_at: string } = {
     updated_at: new Date().toISOString(),
   };
 
-  if (typeof body.title === "string") {
-    patch.title = body.title.trim().slice(0, 80) || "New chat";
+  if (rawTitle) {
+    patch.title = rawTitle.trim().slice(0, 80) || "New chat";
   }
 
-  if (typeof body.model === "string" && isSupportedModel(body.model)) {
-    patch.model = body.model;
+  if (rawModel && isSupportedModel(rawModel)) {
+    patch.model = rawModel;
   }
 
   const supabase = await createSupabaseServerClient();

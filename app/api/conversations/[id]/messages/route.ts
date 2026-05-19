@@ -1,8 +1,10 @@
-import type { UIMessage } from "ai";
-
 import { messageText, titleFromMessages } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  parseRequestBody,
+  saveMessagesSchema,
+} from "@/lib/cortex/validation";
 
 export async function GET(
   _req: Request,
@@ -57,11 +59,9 @@ export async function PUT(
   }
 
   const { id } = await ctx.params;
-  const { messages }: { messages?: UIMessage[] } = await req.json();
-
-  if (!Array.isArray(messages)) {
-    return Response.json({ error: "Invalid messages" }, { status: 400 });
-  }
+  const parsed = await parseRequestBody(req, saveMessagesSchema);
+  if ("errorResponse" in parsed) return parsed.errorResponse;
+  const { messages } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
   const { data: conversation, error: conversationError } = await supabase
