@@ -1,6 +1,7 @@
 import { DEFAULT_CORTEX_MODEL, isSupportedModel } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/cortex/rate-limit";
 import {
   createConversationSchema,
   parseRequestBody,
@@ -41,7 +42,18 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const parsed = await parseRequestBody(req, createConversationSchema);
+  const rateLimitResult = await checkRateLimit(user.id);
+  if (!rateLimitResult.ok) {
+    return Response.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimitResult.retryAfter) },
+      },
+    );
+  }
+
+  const parsed = await parseRequestBody(req, createConversationSchema, 2048);
   if ("errorResponse" in parsed) return parsed.errorResponse;
   const { title: rawTitle, model: rawModel } = parsed.data;
 

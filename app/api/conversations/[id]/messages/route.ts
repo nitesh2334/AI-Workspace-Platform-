@@ -1,6 +1,7 @@
-import { messageText, titleFromMessages } from "@/lib/cortex/chat";
+import { titleFromMessages } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/cortex/rate-limit";
 import {
   parseRequestBody,
   saveMessagesSchema,
@@ -59,7 +60,19 @@ export async function PUT(
   }
 
   const { id } = await ctx.params;
-  const parsed = await parseRequestBody(req, saveMessagesSchema);
+
+  const rateLimitResult = await checkRateLimit(user.id);
+  if (!rateLimitResult.ok) {
+    return Response.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimitResult.retryAfter) },
+      },
+    );
+  }
+
+  const parsed = await parseRequestBody(req, saveMessagesSchema, 2_097_152);
   if ("errorResponse" in parsed) return parsed.errorResponse;
   const { messages } = parsed.data;
 
@@ -75,34 +88,18 @@ export async function PUT(
     return Response.json({ error: "Conversation not found" }, { status: 404 });
   }
 
-  const { error: deleteError } = await supabase
-    .from("cortex_messages")
-    .delete()
-    .eq("conversation_id", id)
-    .eq("user_id", user.id);
+  // Atomic replace: delete + insert in a single DB transaction
+  const { error: rpcError } = await supabase.rpc(
+    "replace_conversation_messages",
+    {
+      p_conversation_id: id,
+      p_user_id: user.id,
+      p_messages: messages,
+    },
+  );
 
-  if (deleteError) {
-    return Response.json({ error: deleteError.message }, { status: 500 });
-  }
-
-  const rows = messages.map((message, index) => ({
-    conversation_id: id,
-    user_id: user.id,
-    ui_id: message.id,
-    role: message.role,
-    parts: message.parts,
-    content: messageText(message),
-    position: index,
-  }));
-
-  if (rows.length > 0) {
-    const { error: insertError } = await supabase
-      .from("cortex_messages")
-      .insert(rows);
-
-    if (insertError) {
-      return Response.json({ error: insertError.message }, { status: 500 });
-    }
+  if (rpcError) {
+    return Response.json({ error: rpcError.message }, { status: 500 });
   }
 
   const title =

@@ -16,7 +16,7 @@ export async function getUser() {
 export async function requireUser(options?: { redirectTo?: string }) {
   const user = await getUser();
   if (!user) {
-    redirect(options?.redirectTo ?? "/");
+    redirect(options?.redirectTo ?? "/login");
   }
   return user;
 }

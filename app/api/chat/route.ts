@@ -5,6 +5,7 @@ import { DEFAULT_CORTEX_MODEL, isSupportedModel } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/cortex/rate-limit";
+import { recordUsage } from "@/lib/cortex/usage";
 import { chatSchema, parseRequestBody } from "@/lib/cortex/validation";
 
 export const maxDuration = 60;
@@ -75,6 +76,16 @@ export async function POST(req: Request) {
       "You are Cortex, a concise AI workspace assistant. Help with planning, writing, debugging, and technical reasoning. Use markdown when it improves readability.",
     messages: await convertToModelMessages(messages.slice(-30)),
     maxOutputTokens: 1600,
+    onFinish: async ({ usage }) => {
+      if (!usage) return;
+      const supabase = await createSupabaseServerClient();
+      await recordUsage(supabase, {
+        userId: user.id,
+        model: selectedModel,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+      });
+    },
   });
 
   return result.toUIMessageStreamResponse({

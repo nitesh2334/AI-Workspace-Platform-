@@ -1,6 +1,7 @@
 import { isSupportedModel } from "@/lib/cortex/chat";
 import { getUser } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/cortex/rate-limit";
 import {
   parseRequestBody,
   updateConversationSchema,
@@ -15,8 +16,19 @@ export async function PATCH(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const rateLimitResult = await checkRateLimit(user.id);
+  if (!rateLimitResult.ok) {
+    return Response.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimitResult.retryAfter) },
+      },
+    );
+  }
+
   const { id } = await ctx.params;
-  const parsed = await parseRequestBody(req, updateConversationSchema);
+  const parsed = await parseRequestBody(req, updateConversationSchema, 2048);
   if ("errorResponse" in parsed) return parsed.errorResponse;
   const { title: rawTitle, model: rawModel } = parsed.data;
 
@@ -63,6 +75,17 @@ export async function DELETE(
   const user = await getUser();
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rateLimitResult = await checkRateLimit(user.id);
+  if (!rateLimitResult.ok) {
+    return Response.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rateLimitResult.retryAfter) },
+      },
+    );
   }
 
   const { id } = await ctx.params;
