@@ -36,12 +36,16 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const categoryParam = url.searchParams.get("category");
+  const workspaceId = url.searchParams.get("workspace_id");
   const category = categoryParam && MEMORY_CATEGORIES.includes(categoryParam as MemoryCategory)
     ? (categoryParam as MemoryCategory)
     : undefined;
 
   const supabase = await createSupabaseServerClient();
-  const memories = await listMemories(supabase, user.id, { category });
+  const memories = await listMemories(supabase, user.id, {
+    category,
+    workspaceId: workspaceId ?? undefined,
+  });
 
   return Response.json({ memories });
 }
@@ -65,7 +69,7 @@ export async function POST(req: Request) {
 
   const parsed = await parseRequestBody(req, createMemorySchema, 4096);
   if ("errorResponse" in parsed) return parsed.errorResponse;
-  const { key, value, category, importance, source } = parsed.data;
+  const { key, value, category, importance, source, workspace_id } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
   const result = await upsertMemory(supabase, user.id, {
@@ -74,6 +78,7 @@ export async function POST(req: Request) {
     category,
     importance,
     source,
+    workspaceId: workspace_id,
   });
 
   if (result.error) {
@@ -102,12 +107,14 @@ export async function PATCH(req: Request) {
 
   const parsed = await parseRequestBody(req, updateMemorySchema, 4096);
   if ("errorResponse" in parsed) return parsed.errorResponse;
-  const { key, value, category, importance } = parsed.data;
+  const { key, value, category, importance, workspace_id } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
 
   // Get existing memory to merge with new values
-  const existing = await getMemory(supabase, user.id, key);
+  const existing = await getMemory(supabase, user.id, key, {
+    workspaceId: workspace_id,
+  });
   if (!existing) {
     return Response.json({ error: "Memory not found" }, { status: 404 });
   }
@@ -118,6 +125,7 @@ export async function PATCH(req: Request) {
     category: category ?? existing.category,
     importance: importance ?? existing.importance,
     source: "manual",
+    workspaceId: workspace_id,
   });
 
   if (result.error) {
@@ -146,6 +154,7 @@ export async function DELETE(req: Request) {
 
   const url = new URL(req.url);
   const categoryParam = url.searchParams.get("category");
+  const workspaceId = url.searchParams.get("workspace_id");
 
   // If category param is provided, delete all memories in that category
   if (categoryParam) {
@@ -161,6 +170,7 @@ export async function DELETE(req: Request) {
       supabase,
       user.id,
       categoryParam as MemoryCategory,
+      { workspaceId: workspaceId ?? undefined },
     );
 
     if (result.error) {
@@ -175,7 +185,9 @@ export async function DELETE(req: Request) {
   if ("errorResponse" in parsed) return parsed.errorResponse;
 
   const supabase = await createSupabaseServerClient();
-  const result = await deleteMemory(supabase, user.id, parsed.data.key);
+  const result = await deleteMemory(supabase, user.id, parsed.data.key, {
+    workspaceId: workspaceId ?? undefined,
+  });
 
   if (result.error) {
     return Response.json({ error: result.error }, { status: 500 });

@@ -7,19 +7,28 @@ import {
   parseRequestBody,
 } from "@/lib/cortex/validation";
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getUser();
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const url = new URL(req.url);
+  const workspaceId = url.searchParams.get("workspace_id");
+
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("cortex_conversations")
     .select("id,title,model,created_at,updated_at")
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false })
     .limit(40);
+
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
@@ -62,6 +71,7 @@ export async function POST(req: Request) {
     .from("cortex_conversations")
     .insert({
       user_id: user.id,
+      workspace_id: parsed.data.workspace_id,
       title: rawTitle?.trim() || "New chat",
       model:
         rawModel && isSupportedModel(rawModel)

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useWorkspace } from "@/lib/cortex/workspace-context";
 
 export interface UploadedFileInfo {
   id: string;
@@ -30,6 +31,7 @@ export function FileUpload({
   attachedFiles,
   disabled,
 }: FileUploadProps) {
+  const { activeWorkspace } = useWorkspace();
   const [uploading, setUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -43,6 +45,9 @@ export function FileUpload({
     formData.append("file", file);
 
     try {
+      if (activeWorkspace?.id) {
+        formData.append("workspace_id", activeWorkspace.id);
+      }
       const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,

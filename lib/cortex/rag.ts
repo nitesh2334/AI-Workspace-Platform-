@@ -172,6 +172,7 @@ export async function processAndStoreFile(
   supabase: SupabaseClient,
   params: {
     userId: string;
+    workspaceId?: string;
     buffer: Buffer;
     filename: string;
     contentType: string;
@@ -179,7 +180,7 @@ export async function processAndStoreFile(
     sizeBytes: number;
   },
 ): Promise<StoredDocument> {
-  const { userId, buffer, filename, contentType, storagePath, sizeBytes } =
+  const { userId, workspaceId, buffer, filename, contentType, storagePath, sizeBytes } =
     params;
 
   // 1. Extract text
@@ -204,6 +205,7 @@ export async function processAndStoreFile(
     .from("cortex_documents")
     .insert({
       user_id: userId,
+      workspace_id: workspaceId,
       filename,
       content_type: contentType,
       size_bytes: sizeBytes,
@@ -264,9 +266,9 @@ export async function searchRelevantChunks(
   supabase: SupabaseClient,
   userId: string,
   query: string,
-  options: { limit?: number; minSimilarity?: number } = {},
+  options: { limit?: number; minSimilarity?: number; workspaceId?: string } = {},
 ): Promise<RetrievedChunk[]> {
-  const { limit = 5, minSimilarity = 0.5 } = options;
+  const { limit = 5, minSimilarity = 0.5, workspaceId } = options;
 
   const queryText = query.trim();
   if (!queryText) return [];
@@ -279,6 +281,7 @@ export async function searchRelevantChunks(
   // Search via pgvector
   const { data, error } = await supabase.rpc("match_document_chunks", {
     p_user_id: userId,
+    p_workspace_id: workspaceId ?? null,
     p_query_embedding: queryEmbedding,
     p_match_count: limit,
     p_min_similarity: minSimilarity,

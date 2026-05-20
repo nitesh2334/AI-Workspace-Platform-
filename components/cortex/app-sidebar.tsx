@@ -18,6 +18,7 @@ import {
   mainNav,
   type NavItem,
 } from "@/components/cortex/nav-items";
+import { WorkspaceSwitcher } from "@/components/cortex/workspace-switcher";
 
 const SIDEBAR_EXPANDED = 248;
 const SIDEBAR_COLLAPSED = 72;
@@ -110,25 +111,13 @@ export function AppSidebar({
     >
       <div
         className={cn(
-          "flex h-14 shrink-0 items-center border-b border-sidebar-border px-3",
-          collapsed ? "justify-center" : "gap-2",
+          "flex shrink-0 items-center border-b border-sidebar-border px-3",
+          collapsed
+            ? "h-14 justify-center"
+            : "h-14 gap-2",
         )}
       >
-        <div className="flex size-9 items-center justify-center rounded-lg bg-highlight/15 ring-1 ring-highlight/25">
-          <span className="font-mono text-sm font-semibold tracking-tight text-highlight">
-            Cx
-          </span>
-        </div>
-        {!collapsed && (
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-semibold tracking-tight">
-              Cortex
-            </p>
-            <p className="truncate text-[11px] text-muted-foreground">
-              AI workspace
-            </p>
-          </div>
-        )}
+        <WorkspaceSwitcher collapsed={collapsed} />
       </div>
 
       <ScrollArea className="flex-1 px-2 py-4">

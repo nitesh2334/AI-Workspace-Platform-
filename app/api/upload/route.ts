@@ -49,6 +49,8 @@ export async function POST(req: Request) {
     );
   }
 
+  const workspaceId = formData.get("workspace_id") as string | null;
+
   // Validate file size
   if (file.size > MAX_FILE_SIZE) {
     return Response.json(
@@ -93,6 +95,7 @@ export async function POST(req: Request) {
     // Process: extract text → chunk → embed → store in DB
     const document = await processAndStoreFile(supabase, {
       userId: user.id,
+      workspaceId: workspaceId ?? undefined,
       buffer,
       filename,
       contentType,
