@@ -51,6 +51,7 @@ import {
   AttachedFiles,
   type UploadedFileInfo,
 } from "@/components/cortex/file-upload";
+import { useWorkspace } from "@/lib/cortex/workspace-context";
 
 const examplePrompts = [
   "Shape a focused launch plan for a new AI feature.",
@@ -510,6 +511,7 @@ function CommandPalette({
 
 export function CortexChat() {
   const router = useRouter();
+  const { activeWorkspace } = useWorkspace();
   const [input, setInput] = React.useState("");
   const [conversations, setConversations] = React.useState<CortexConversation[]>([]);
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -600,8 +602,11 @@ export function CortexChat() {
     async function loadConversations() {
       setLoadingConversations(true);
       try {
+        const params = activeWorkspace?.id
+          ? `?workspace_id=${activeWorkspace.id}`
+          : "";
         const result = await api<{ conversations: ApiConversation[] }>(
-          "/api/conversations",
+          `/api/conversations${params}`,
         );
         if (cancelled) return;
         const items = result.conversations;
@@ -619,7 +624,13 @@ export function CortexChat() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeWorkspace?.id]);
+
+  // Reset chat state when workspace changes
+  React.useEffect(() => {
+    setActiveId(null);
+    setMessages([]);
+  }, [activeWorkspace?.id]);
 
   React.useEffect(() => {
     if (!activeId) {
@@ -677,7 +688,10 @@ export function CortexChat() {
       "/api/conversations",
       {
         method: "POST",
-        body: JSON.stringify({ model }),
+        body: JSON.stringify({
+          model,
+          workspace_id: activeWorkspace?.id,
+        }),
       },
     );
     setConversations((items) => [result.conversation, ...items]);
@@ -708,6 +722,7 @@ export function CortexChat() {
         body: {
           conversationId,
           model: selectedModel,
+          workspace_id: activeWorkspace?.id,
         },
       },
     );
@@ -751,6 +766,10 @@ export function CortexChat() {
   }
 
   async function deleteConversation(id: string) {
+    // Only delete if the conversation is in the current workspace
+    const target = conversations.find((c) => c.id === id);
+    if (!target) return;
+
     const previous = conversations;
     setConversations((items) => items.filter((item) => item.id !== id));
     if (activeId === id) {

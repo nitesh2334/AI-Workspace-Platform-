@@ -57,6 +57,7 @@ export async function listMemories(
   options?: {
     category?: MemoryCategory;
     limit?: number;
+    workspaceId?: string;
   },
 ): Promise<MemoryEntry[]> {
   let query = supabase
@@ -65,6 +66,10 @@ export async function listMemories(
     .eq("user_id", userId)
     .order("importance", { ascending: false })
     .order("updated_at", { ascending: false });
+
+  if (options?.workspaceId) {
+    query = query.eq("workspace_id", options.workspaceId);
+  }
 
   if (options?.category) {
     query = query.eq("category", options.category);
@@ -88,13 +93,19 @@ export async function getMemory(
   supabase: SupabaseClient,
   userId: string,
   key: string,
+  options?: { workspaceId?: string },
 ): Promise<MemoryEntry | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("cortex_memory")
     .select("*")
     .eq("user_id", userId)
-    .eq("key", key)
-    .single();
+    .eq("key", key);
+
+  if (options?.workspaceId) {
+    query = query.eq("workspace_id", options.workspaceId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error) return null;
   return rowToEntry(data);
@@ -109,9 +120,10 @@ export async function upsertMemory(
     category: MemoryCategory;
     importance?: number;
     source?: MemorySource;
+    workspaceId?: string;
   },
 ): Promise<{ memory: MemoryEntry | null; error?: string }> {
-  const { key, value, category, importance = 1, source = "manual" } = params;
+  const { key, value, category, importance = 1, source = "manual", workspaceId } = params;
 
   // Validate key format (alphanumeric + dots + underscores + hyphens)
   if (!/^[a-zA-Z0-9._-]+$/.test(key)) {
@@ -131,6 +143,7 @@ export async function upsertMemory(
     .upsert(
       {
         user_id: userId,
+        workspace_id: workspaceId,
         key,
         value,
         category,
@@ -138,7 +151,7 @@ export async function upsertMemory(
         source,
       },
       {
-        onConflict: "user_id, key",
+        onConflict: "workspace_id, key",
         ignoreDuplicates: false,
       },
     )
@@ -156,12 +169,19 @@ export async function deleteMemory(
   supabase: SupabaseClient,
   userId: string,
   key: string,
+  options?: { workspaceId?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase
+  let query = supabase
     .from("cortex_memory")
     .delete()
     .eq("user_id", userId)
     .eq("key", key);
+
+  if (options?.workspaceId) {
+    query = query.eq("workspace_id", options.workspaceId);
+  }
+
+  const { error } = await query;
 
   if (error) {
     return { ok: false, error: error.message };
@@ -174,12 +194,19 @@ export async function deleteMemoriesByCategory(
   supabase: SupabaseClient,
   userId: string,
   category: MemoryCategory,
+  options?: { workspaceId?: string },
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase
+  let query = supabase
     .from("cortex_memory")
     .delete()
     .eq("user_id", userId)
     .eq("category", category);
+
+  if (options?.workspaceId) {
+    query = query.eq("workspace_id", options.workspaceId);
+  }
+
+  const { error } = await query;
 
   if (error) {
     return { ok: false, error: error.message };
@@ -206,6 +233,7 @@ export interface MemoryContextResult {
 export async function getMemoryForContext(
   supabase: SupabaseClient,
   userId: string,
+  options?: { workspaceId?: string },
 ): Promise<MemoryContextResult> {
   let query = supabase
     .from("cortex_memory")
@@ -215,6 +243,10 @@ export async function getMemoryForContext(
     .order("importance", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(15);
+
+  if (options?.workspaceId) {
+    query = query.eq("workspace_id", options.workspaceId);
+  }
 
   const { data, error } = await query;
 

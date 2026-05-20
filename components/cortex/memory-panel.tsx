@@ -21,6 +21,7 @@ import {
   type MemoryCategory,
   type MemoryEntry,
 } from "@/lib/cortex/memory";
+import { useWorkspace } from "@/lib/cortex/workspace-context";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -277,6 +278,7 @@ function MemoryForm({
 // ─── Main Panel ──────────────────────────────────────────────
 
 export function MemoryPanel() {
+  const { activeWorkspace } = useWorkspace();
   const [memories, setMemories] = React.useState<MemoryEntry[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -294,8 +296,13 @@ export function MemoryPanel() {
     setLoading(true);
     setError(null);
     try {
-      const params = activeCategory !== "all" ? `?category=${activeCategory}` : "";
-      const result = await api<{ memories: MemoryEntry[] }>(`/api/memory${params}`);
+      const params = new URLSearchParams();
+      if (activeCategory !== "all") params.set("category", activeCategory);
+      if (activeWorkspace?.id) params.set("workspace_id", activeWorkspace.id);
+      const qs = params.toString();
+      const result = await api<{ memories: MemoryEntry[] }>(
+        `/api/memory${qs ? `?${qs}` : ""}`,
+      );
       setMemories(result.memories);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load memories");
@@ -306,12 +313,15 @@ export function MemoryPanel() {
 
   React.useEffect(() => {
     void loadMemories();
-  }, [activeCategory]);
+  }, [activeCategory, activeWorkspace?.id]);
 
   async function handleCreate(data: MemoryFormData) {
     await api("/api/memory", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        workspace_id: activeWorkspace?.id,
+      }),
     });
     setShowForm(false);
     void loadMemories();
@@ -321,7 +331,10 @@ export function MemoryPanel() {
     if (!editingMemory) return;
     await api("/api/memory", {
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        workspace_id: activeWorkspace?.id,
+      }),
     });
     setEditingMemory(null);
     void loadMemories();
@@ -331,7 +344,10 @@ export function MemoryPanel() {
     if (deleting === key) return;
     setDeleting(key);
     try {
-      await api("/api/memory", {
+      const params = activeWorkspace?.id
+        ? `?workspace_id=${activeWorkspace.id}`
+        : "";
+      await api(`/api/memory${params}`, {
         method: "DELETE",
         body: JSON.stringify({ key }),
       });

@@ -8,7 +8,7 @@ import {
 } from "@/lib/cortex/validation";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: RouteContext<"/api/conversations/[id]/messages">,
 ) {
   const user = await getUser();
@@ -17,14 +17,22 @@ export async function GET(
   }
 
   const { id } = await ctx.params;
+  const url = new URL(req.url);
+  const workspaceId = url.searchParams.get("workspace_id");
+
   const supabase = await createSupabaseServerClient();
 
-  const { data: conversation, error: conversationError } = await supabase
+  let conversationQuery = supabase
     .from("cortex_conversations")
     .select("id")
     .eq("id", id)
-    .eq("user_id", user.id)
-    .single();
+    .eq("user_id", user.id);
+
+  if (workspaceId) {
+    conversationQuery = conversationQuery.eq("workspace_id", workspaceId);
+  }
+
+  const { data: conversation, error: conversationError } = await conversationQuery.single();
 
   if (conversationError || !conversation) {
     return Response.json({ error: "Conversation not found" }, { status: 404 });

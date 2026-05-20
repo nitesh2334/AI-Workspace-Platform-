@@ -5,12 +5,14 @@ export const chatSchema = z.object({
   messages: z.array(z.any()).min(1, "messages must be a non-empty array"),
   conversationId: z.string().optional(),
   model: z.string().optional(),
+  workspace_id: z.string().optional(),
 });
 
 /** POST /api/conversations */
 export const createConversationSchema = z.object({
   title: z.string().optional(),
   model: z.string().optional(),
+  workspace_id: z.string().optional(),
 });
 
 /** PATCH /api/conversations/[id] */
@@ -49,6 +51,7 @@ export const createMemorySchema = z.object({
   category: memoryCategoryEnum.default("general"),
   importance: z.number().int().min(1).max(5).default(1),
   source: z.enum(["manual", "chat_extraction", "api", "import"]).default("manual"),
+  workspace_id: z.string().optional(),
 });
 
 /** PATCH /api/memory */
@@ -57,6 +60,7 @@ export const updateMemorySchema = z.object({
   value: z.string().min(1, "Value is required").max(2000, "Value is too long").optional(),
   category: memoryCategoryEnum.optional(),
   importance: z.number().int().min(1).max(5).optional(),
+  workspace_id: z.string().optional(),
 });
 
 /** DELETE /api/memory */

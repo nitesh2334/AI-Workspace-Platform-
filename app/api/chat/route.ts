@@ -48,19 +48,25 @@ export async function POST(req: Request) {
 
   const parsed = await parseRequestBody(req, chatSchema);
   if ("errorResponse" in parsed) return parsed.errorResponse;
-  const { messages, conversationId, model } = parsed.data;
+  const { messages, conversationId, model, workspace_id } = parsed.data;
+  const workspaceId = workspace_id;
 
   const selectedModel = model && isSupportedModel(model) ? model : DEFAULT_CORTEX_MODEL;
 
   const supabase = await createSupabaseServerClient();
 
   if (conversationId) {
-    const { data: conversation, error } = await supabase
+    let query = supabase
       .from("cortex_conversations")
       .select("id")
       .eq("id", conversationId)
-      .eq("user_id", user.id)
-      .single();
+      .eq("user_id", user.id);
+
+    if (workspaceId) {
+      query = query.eq("workspace_id", workspaceId);
+    }
+
+    const { data: conversation, error } = await query.single();
 
     if (error || !conversation) {
       return Response.json({ error: "Conversation not found" }, { status: 404 });
@@ -93,6 +99,7 @@ export async function POST(req: Request) {
       const chunks = await searchRelevantChunks(supabase, user.id, latestQuery, {
         limit: 4,
         minSimilarity: 0.45,
+        workspaceId,
       });
 
       if (chunks.length > 0) {
@@ -117,6 +124,7 @@ export async function POST(req: Request) {
     const memoryResult = await getMemoryForContext(
       supabase,
       user.id,
+      { workspaceId },
     );
     if (memoryResult.count > 0) {
       memoryContext = memoryResult.text;
