@@ -804,6 +804,7 @@ export function CortexChat() {
       body: {
         conversationId: activeId,
         model: selectedModel,
+        workspace_id: activeWorkspace?.id,
       },
     });
   }

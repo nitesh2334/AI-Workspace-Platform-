@@ -96,11 +96,13 @@ export async function POST(req: Request) {
   let ragContext = "";
   try {
     if (latestQuery) {
+      console.time("[timing] searchRelevantChunks");
       const chunks = await searchRelevantChunks(supabase, user.id, latestQuery, {
         limit: 4,
         minSimilarity: 0.45,
         workspaceId,
       });
+      console.timeEnd("[timing] searchRelevantChunks");
 
       if (chunks.length > 0) {
         ragContext =
@@ -113,25 +115,29 @@ export async function POST(req: Request) {
             .join("\n\n---\n\n");
       }
     }
-  } catch {
+  } catch (err) {
     // RAG errors are non-fatal — the chat still works without document context
-    console.error("[rag] Retrieval failed");
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[rag] Retrieval failed:", message, { workspaceId, queryLength: latestQuery?.length });
   }
 
   // ─── Memory Retrieval ───────────────────────────────
   let memoryContext = "";
   try {
+    console.time("[timing] getMemoryForContext");
     const memoryResult = await getMemoryForContext(
       supabase,
       user.id,
       { workspaceId },
     );
+    console.timeEnd("[timing] getMemoryForContext");
     if (memoryResult.count > 0) {
       memoryContext = memoryResult.text;
     }
-  } catch {
+  } catch (err) {
     // Memory errors are non-fatal
-    console.error("[memory] Retrieval failed");
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[memory] Retrieval failed:", message, { workspaceId });
   }
 
   const systemPrompt =
@@ -139,12 +145,21 @@ export async function POST(req: Request) {
     ragContext +
     memoryContext;
 
+  let timingLogged = false;
+  const streamStart = Date.now();
   const result = streamText({
     model: openrouter.chat(selectedModel),
     system: systemPrompt,
     messages: await convertToModelMessages(messages.slice(-30)),
     maxOutputTokens: 1600,
+    onChunk: () => {
+      if (!timingLogged) {
+        timingLogged = true;
+        console.log(`[timing] streamText (first token): ${Date.now() - streamStart}ms`);
+      }
+    },
     onFinish: async ({ usage }) => {
+      console.log(`[timing] streamText (total): ${Date.now() - streamStart}ms`);
       if (!usage) return;
       const supabase = await createSupabaseServerClient();
       await recordUsage(supabase, {

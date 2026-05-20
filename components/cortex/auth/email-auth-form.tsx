@@ -92,7 +92,7 @@ router.refresh();
               password,
               options: {
                 
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
+                emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
               },
             });
             if (signUpError) throw signUpError;
@@ -132,7 +132,7 @@ router.refresh();
             <Label htmlFor="password">Password</Label>
             {mode === "login" ? (
               <span className="text-xs text-muted-foreground">
-                <Link className="hover:text-foreground hover:underline" href="/login">
+                <Link className="hover:text-foreground hover:underline" href="/forgot-password">
                   Forgot?
                 </Link>
               </span>

@@ -274,11 +274,14 @@ export async function searchRelevantChunks(
   if (!queryText) return [];
 
   // Generate embedding for the query
+  console.time("[timing] rag: embed query");
   const embeddings = await generateEmbeddings([queryText]);
+  console.timeEnd("[timing] rag: embed query");
   if (embeddings.length === 0) return [];
   const queryEmbedding = embeddings[0];
 
   // Search via pgvector
+  console.time("[timing] rag: match_document_chunks RPC");
   const { data, error } = await supabase.rpc("match_document_chunks", {
     p_user_id: userId,
     p_workspace_id: workspaceId ?? null,
@@ -287,8 +290,14 @@ export async function searchRelevantChunks(
     p_min_similarity: minSimilarity,
   });
 
+  console.timeEnd("[timing] rag: match_document_chunks RPC");
+
   if (error) {
-    console.error("[rag] Vector search failed:", error.message);
+    console.error(
+      "[rag] Vector search failed:",
+      error.message,
+      { userId, workspaceId, limit, minSimilarity, queryLength: queryText.length },
+    );
     return [];
   }
 

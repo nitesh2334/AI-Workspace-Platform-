@@ -254,12 +254,35 @@ export async function getMemoryForContext(
 
   const { data, error } = await query;
 
+  if (error && options?.workspaceId) {
+    // If the workspace-scoped query fails, fall back to all memories for the user
+    console.error("[memory] Workspace-scoped getMemoryForContext failed, falling back:", error.message);
+    const { data: allData, error: allError } = await supabase
+      .from("cortex_memory")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("importance", 2)
+      .order("importance", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(15);
+
+    if (allError || !allData || allData.length === 0) {
+      return { text: "", count: 0 };
+    }
+
+    const entries = allData.map(rowToEntry);
+    return formatMemorySections(entries);
+  }
+
   if (error || !data || data.length === 0) {
     return { text: "", count: 0 };
   }
 
   const entries = data.map(rowToEntry);
+  return formatMemorySections(entries);
+}
 
+function formatMemorySections(entries: MemoryEntry[]): MemoryContextResult {
   // Build readable sections grouped by category
   const sections: string[] = [];
 
