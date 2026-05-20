@@ -24,6 +24,51 @@ export const saveMessagesSchema = z.object({
   messages: z.array(z.any()).min(1, "messages must be a non-empty array"),
 });
 
+// ─── Memory ───────────────────────────────────────────────────
+
+const memoryCategoryEnum = z.enum([
+  "preference",
+  "goal",
+  "project",
+  "background",
+  "fact",
+  "general",
+]);
+
+/** POST /api/memory */
+export const createMemorySchema = z.object({
+  key: z
+    .string()
+    .min(1, "Key is required")
+    .max(128, "Key is too long")
+    .regex(
+      /^[a-zA-Z0-9._-]+$/,
+      "Use only letters, numbers, dots, underscores, and hyphens",
+    ),
+  value: z.string().min(1, "Value is required").max(2000, "Value is too long"),
+  category: memoryCategoryEnum.default("general"),
+  importance: z.number().int().min(1).max(5).default(1),
+  source: z.enum(["manual", "chat_extraction", "api", "import"]).default("manual"),
+});
+
+/** PATCH /api/memory */
+export const updateMemorySchema = z.object({
+  key: z.string().min(1, "Key is required"),
+  value: z.string().min(1, "Value is required").max(2000, "Value is too long").optional(),
+  category: memoryCategoryEnum.optional(),
+  importance: z.number().int().min(1).max(5).optional(),
+});
+
+/** DELETE /api/memory */
+export const deleteMemorySchema = z.object({
+  key: z.string().min(1, "Key is required"),
+});
+
+/** DELETE /api/memory?category=... */
+export const deleteCategorySchema = z.object({
+  category: memoryCategoryEnum,
+});
+
 const DEFAULT_MAX_BODY_SIZE = 1_048_576; // 1 MB
 
 /**

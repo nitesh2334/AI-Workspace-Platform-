@@ -8,6 +8,7 @@ import { checkRateLimit } from "@/lib/cortex/rate-limit";
 import { recordUsage } from "@/lib/cortex/usage";
 import { chatSchema, parseRequestBody } from "@/lib/cortex/validation";
 import { searchRelevantChunks } from "@/lib/cortex/rag";
+import { getMemoryForContext } from "@/lib/cortex/memory";
 
 export const maxDuration = 60;
 
@@ -51,8 +52,9 @@ export async function POST(req: Request) {
 
   const selectedModel = model && isSupportedModel(model) ? model : DEFAULT_CORTEX_MODEL;
 
+  const supabase = await createSupabaseServerClient();
+
   if (conversationId) {
-    const supabase = await createSupabaseServerClient();
     const { data: conversation, error } = await supabase
       .from("cortex_conversations")
       .select("id")
@@ -71,24 +73,24 @@ export async function POST(req: Request) {
       .eq("user_id", user.id);
   }
 
+  // Extract the latest user message for RAG + memory context
+  const latestUserMsg = messages
+    .filter((m: { role: string }) => m.role === "user")
+    .pop();
+  const latestQuery =
+    latestUserMsg && typeof latestUserMsg === "object"
+      ? ((latestUserMsg as { content?: string }).content ??
+        ((latestUserMsg as { parts?: Array<{ type: string; text: string }> }).parts
+          ?.filter((p) => p.type === "text")
+          .map((p) => p.text)
+          .join("") || ""))
+      : "";
+
   // ─── RAG: retrieve relevant document chunks for the latest user message ───
   let ragContext = "";
   try {
-    const latestUserMsg = messages
-      .filter((m: { role: string }) => m.role === "user")
-      .pop();
-    const query =
-      latestUserMsg && typeof latestUserMsg === "object"
-        ? ((latestUserMsg as { content?: string }).content ??
-          ((latestUserMsg as { parts?: Array<{ type: string; text: string }> }).parts
-            ?.filter((p) => p.type === "text")
-            .map((p) => p.text)
-            .join("") || ""))
-        : "";
-
-    if (query) {
-      const supabase = await createSupabaseServerClient();
-      const chunks = await searchRelevantChunks(supabase, user.id, query, {
+    if (latestQuery) {
+      const chunks = await searchRelevantChunks(supabase, user.id, latestQuery, {
         limit: 4,
         minSimilarity: 0.45,
       });
@@ -109,9 +111,25 @@ export async function POST(req: Request) {
     console.error("[rag] Retrieval failed");
   }
 
+  // ─── Memory Retrieval ───────────────────────────────
+  let memoryContext = "";
+  try {
+    const memoryResult = await getMemoryForContext(
+      supabase,
+      user.id,
+    );
+    if (memoryResult.count > 0) {
+      memoryContext = memoryResult.text;
+    }
+  } catch {
+    // Memory errors are non-fatal
+    console.error("[memory] Retrieval failed");
+  }
+
   const systemPrompt =
     "You are Cortex, a concise AI workspace assistant. Help with planning, writing, debugging, and technical reasoning. Use markdown when it improves readability." +
-    ragContext;
+    ragContext +
+    memoryContext;
 
   const result = streamText({
     model: openrouter.chat(selectedModel),
