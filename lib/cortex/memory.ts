@@ -138,6 +138,10 @@ export async function upsertMemory(
     return { memory: null, error: "Value is too long (max 2000 characters)." };
   }
 
+  if (!workspaceId) {
+    return { memory: null, error: "workspace_id is required" };
+  }
+
   const { data, error } = await supabase
     .from("cortex_memory")
     .upsert(

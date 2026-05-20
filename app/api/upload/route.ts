@@ -50,6 +50,12 @@ export async function POST(req: Request) {
   }
 
   const workspaceId = formData.get("workspace_id") as string | null;
+  if (!workspaceId) {
+    return Response.json(
+      { error: "workspace_id is required" },
+      { status: 400 },
+    );
+  }
 
   // Validate file size
   if (file.size > MAX_FILE_SIZE) {
@@ -95,7 +101,7 @@ export async function POST(req: Request) {
     // Process: extract text → chunk → embed → store in DB
     const document = await processAndStoreFile(supabase, {
       userId: user.id,
-      workspaceId: workspaceId ?? undefined,
+      workspaceId,
       buffer,
       filename,
       contentType,
