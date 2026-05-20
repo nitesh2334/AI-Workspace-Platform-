@@ -66,6 +66,13 @@ export async function POST(req: Request) {
   if ("errorResponse" in parsed) return parsed.errorResponse;
   const { title: rawTitle, model: rawModel } = parsed.data;
 
+  if (!parsed.data.workspace_id) {
+    return Response.json(
+      { error: "workspace_id is required" },
+      { status: 400 },
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("cortex_conversations")
